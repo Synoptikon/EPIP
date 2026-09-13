@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Iterable
 
 from epip.catalog.events import CatalogEvent
 
@@ -23,6 +23,8 @@ class ForecastRecord:
     def __post_init__(self) -> None:
         if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
             raise ValueError("generated_at must be timezone-aware")
+        if not self.region.strip():
+            raise ValueError("region must not be empty")
         if self.horizon_hours <= 0:
             raise ValueError("horizon_hours must be > 0")
         if not 0.0 <= self.probability <= 1.0:
@@ -48,7 +50,7 @@ def evaluate_forecast(
     forecast: ForecastRecord,
     events: Iterable[CatalogEvent],
     *,
-    region_match: callable | None = None,
+    region_match: Callable[[CatalogEvent], bool] | None = None,
 ) -> ProspectiveOutcome:
     """Evaluate only events strictly after generation and before expiry.
 
