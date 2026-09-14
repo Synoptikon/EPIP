@@ -58,6 +58,11 @@ def test_pipeline_separates_training_and_future_evaluation(monkeypatch):
     assert result.forecast.generated_at == datetime(2026, 1, 11, tzinfo=timezone.utc)
     assert result.outcome.observed_event_ids == ("f1",)
     assert 0.0 <= result.forecast.probability <= 1.0
+    assert result.training_provenance.source == "USGS FDSN"
+    assert result.training_provenance.starttime == "2026-01-01T00:00:00Z"
+    assert result.evaluation_provenance.endtime == "2026-01-20T00:00:00Z"
+    assert result.training_provenance.event_count == len(training)
+    assert len(result.training_provenance.payload_sha256) == 64
 
 
 def test_pipeline_requires_strictly_ordered_windows():
