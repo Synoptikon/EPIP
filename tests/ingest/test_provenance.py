@@ -25,8 +25,8 @@ def test_provenance_hash_is_deterministic():
     first = build_provenance(**kwargs)
     second = build_provenance(**kwargs)
 
-    assert first.payload_sha256 == second.payload_sha256
-    assert len(first.payload_sha256) == 64
+    assert first.events_sha256 == second.events_sha256
+    assert len(first.events_sha256) == 64
     assert first.event_count == 1
     assert first.parameters == (("format", "geojson"), ("limit", "100"))
 
