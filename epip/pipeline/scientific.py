@@ -122,15 +122,27 @@ def run_pipeline(
     if not evaluation_validation.valid:
         raise ValueError("evaluation validation failed: " + "; ".join(evaluation_validation.errors))
 
-    training_events = tuple(normalize_events(training_raw))
-    evaluation_events = tuple(normalize_events(evaluation_raw))
+    cutoff = _parse_utc(config.cutoff)
+    training_start = _parse_utc(config.training_start)
+    training_events = tuple(
+        event for event in normalize_events(training_raw)
+        if training_start <= event.time < cutoff
+    )
+    evaluation_events = tuple(
+        event for event in normalize_events(evaluation_raw)
+        if cutoff < event.time <= _parse_utc(config.evaluation_end)
+    )
 
     completeness = estimate_mc(training_events)
-    rate = calculate_rate(training_events, mc=completeness.mc)
+    rate = calculate_rate(
+        training_events,
+        mc=completeness.mc,
+        start_time=training_start,
+        end_time=cutoff,
+    )
 
     forecast_threshold = max(config.minimum_magnitude, completeness.mc)
     model = PoissonForecastModel(rate_per_year=rate.rate_per_year)
-    cutoff = _parse_utc(config.cutoff)
     forecast = model.forecast(
         generated_at=cutoff,
         region=config.region,
