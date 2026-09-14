@@ -30,8 +30,12 @@ def test_pipeline_separates_training_and_future_evaluation(monkeypatch):
         event("t8", "2026-01-08T00:00:00+00:00", 4.7),
         event("t9", "2026-01-09T00:00:00+00:00", 4.8),
         event("t10", "2026-01-10T00:00:00+00:00", 4.9),
+        event("cutoff-training", "2026-01-11T00:00:00+00:00", 6.0),
     ]
-    future = [event("f1", "2026-01-12T00:00:00+00:00", 5.0)]
+    future = [
+        event("cutoff-future", "2026-01-11T00:00:00+00:00", 6.1),
+        event("f1", "2026-01-12T00:00:00+00:00", 5.0),
+    ]
 
     calls = []
 
@@ -54,7 +58,9 @@ def test_pipeline_separates_training_and_future_evaluation(monkeypatch):
 
     assert len(calls) == 2
     assert result.training_events[-1].event_id == "t10"
-    assert result.evaluation_events == (result.evaluation_events[0],)
+    assert "cutoff-training" not in {event.event_id for event in result.training_events}
+    assert "cutoff-future" not in {event.event_id for event in result.evaluation_events}
+    assert result.evaluation_events[-1].event_id == "f1"
     assert result.forecast.generated_at == datetime(2026, 1, 11, tzinfo=timezone.utc)
     assert result.outcome.observed_event_ids == ("f1",)
     assert 0.0 <= result.forecast.probability <= 1.0
