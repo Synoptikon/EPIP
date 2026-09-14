@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 
@@ -26,6 +26,9 @@ class CatalogEvent:
         if not self.event_id:
             raise ValueError("event_id must not be empty")
 
+        if self.time.tzinfo is None or self.time.utcoffset() is None:
+            raise ValueError("time must be timezone-aware")
+
         if not -90.0 <= self.latitude <= 90.0:
             raise ValueError("latitude must be between -90 and 90")
 
@@ -37,7 +40,7 @@ class CatalogEvent:
 
 
 def normalize_events(events: Iterable[dict]) -> list[CatalogEvent]:
-    """Convert ingestion records into canonical catalog events."""
+    """Convert validated ingestion records into canonical catalog events."""
 
     result: list[CatalogEvent] = []
     seen: set[str] = set()
@@ -53,10 +56,13 @@ def normalize_events(events: Iterable[dict]) -> list[CatalogEvent]:
         if not isinstance(time, datetime):
             raise TypeError("event time must be a datetime")
 
+        if time.tzinfo is None or time.utcoffset() is None:
+            raise ValueError("event time must be timezone-aware")
+
         result.append(
             CatalogEvent(
                 event_id=event_id,
-                time=time,
+                time=time.astimezone(timezone.utc),
                 latitude=float(event["latitude"]),
                 longitude=float(event["longitude"]),
                 depth_km=(
