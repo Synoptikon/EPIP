@@ -62,7 +62,7 @@ def test_pipeline_separates_training_and_future_evaluation(monkeypatch):
     assert result.training_provenance.starttime == "2026-01-01T00:00:00Z"
     assert result.evaluation_provenance.endtime == "2026-01-20T00:00:00Z"
     assert result.training_provenance.event_count == len(training)
-    assert len(result.training_provenance.payload_sha256) == 64
+    assert len(result.training_provenance.events_sha256) == 64
 
 
 def test_pipeline_requires_strictly_ordered_windows():
