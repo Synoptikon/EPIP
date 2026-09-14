@@ -20,7 +20,7 @@ class AcquisitionProvenance:
     parameters: tuple[tuple[str, str], ...]
     acquired_at: datetime
     event_count: int
-    payload_sha256: str
+    events_sha256: str
 
 
 def build_provenance(
@@ -63,5 +63,5 @@ def build_provenance(
         parameters=canonical_parameters,
         acquired_at=acquired_at.astimezone(timezone.utc),
         event_count=len(events),
-        payload_sha256=hashlib.sha256(canonical_events).hexdigest(),
+        events_sha256=hashlib.sha256(canonical_events).hexdigest(),
     )
