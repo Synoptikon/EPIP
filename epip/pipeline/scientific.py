@@ -126,11 +126,17 @@ def run_pipeline(
     evaluation_events = tuple(normalize_events(evaluation_raw))
 
     completeness = estimate_mc(training_events)
-    rate = calculate_rate(training_events, mc=completeness.mc)
+    training_start = _parse_utc(config.training_start)
+    cutoff = _parse_utc(config.cutoff)
+    rate = calculate_rate(
+        training_events,
+        mc=completeness.mc,
+        start_time=training_start,
+        end_time=cutoff,
+    )
 
     forecast_threshold = max(config.minimum_magnitude, completeness.mc)
     model = PoissonForecastModel(rate_per_year=rate.rate_per_year)
-    cutoff = _parse_utc(config.cutoff)
     forecast = model.forecast(
         generated_at=cutoff,
         region=config.region,
