@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from math import exp
 from typing import Iterable
 
@@ -27,8 +27,19 @@ def calculate_rate(
     events: Iterable[CatalogEvent],
     *,
     mc: float,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> SeismicRate:
-    """Calculate the observed annual rate for M >= Mc."""
+    """Calculate the observed annual rate for M >= Mc.
+
+    When ``start_time`` and ``end_time`` are supplied, the rate denominator is
+    the declared observation window rather than the span between the first
+    and last observed events. This prevents event clustering from silently
+    changing the exposure duration used by the forecast model.
+
+    If no window is supplied, the historical event-span behavior is retained
+    for backward compatibility.
+    """
 
     catalog = sorted(events, key=lambda event: event.time)
 
@@ -37,6 +48,22 @@ def calculate_rate(
 
     if mc < -2.0 or mc > 10.0:
         raise ValueError("mc must be between -2 and 10")
+
+    if (start_time is None) != (end_time is None):
+        raise ValueError("start_time and end_time must be supplied together")
+
+    if start_time is not None and end_time is not None:
+        if start_time.tzinfo is None or start_time.utcoffset() is None:
+            raise ValueError("start_time must be timezone-aware")
+        if end_time.tzinfo is None or end_time.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        start = start_time.astimezone(timezone.utc)
+        end = end_time.astimezone(timezone.utc)
+        if not start < end:
+            raise ValueError("start_time must be before end_time")
+    else:
+        start = catalog[0].time.astimezone(timezone.utc)
+        end = catalog[-1].time.astimezone(timezone.utc)
 
     complete = [
         event
@@ -48,15 +75,9 @@ def calculate_rate(
     if len(complete) < 1:
         raise ValueError("no events at or above Mc")
 
-    start = catalog[0].time
-    end = catalog[-1].time
-
     duration_seconds = (end - start).total_seconds()
-
     if duration_seconds <= 0:
-        raise ValueError(
-            "catalog duration must be greater than zero"
-        )
+        raise ValueError("catalog duration must be greater than zero")
 
     duration_years = duration_seconds / SECONDS_PER_YEAR
     rate = len(complete) / duration_years
