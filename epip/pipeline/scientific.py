@@ -16,7 +16,8 @@ from epip.catalog.completeness import CompletenessResult, estimate_mc
 from epip.catalog.events import CatalogEvent, normalize_events
 from epip.catalog.rates import SeismicRate, calculate_rate
 from epip.forecast.poisson import PoissonForecastModel
-from epip.ingest.usgs import fetch_events
+from epip.ingest.provenance import AcquisitionProvenance, build_provenance
+from epip.ingest.usgs import USGS_FDSN_URL, fetch_events
 from epip.prospective import ForecastRecord, ProspectiveOutcome, evaluate_forecast
 from epip.validation.events import EventValidationReport, validate_events
 
@@ -74,6 +75,8 @@ class ScientificPipelineResult:
 
     generated_at: datetime
     config: ScientificPipelineConfig
+    training_provenance: AcquisitionProvenance
+    evaluation_provenance: AcquisitionProvenance
     training_validation: EventValidationReport
     evaluation_validation: EventValidationReport
     training_events: tuple[CatalogEvent, ...]
@@ -91,8 +94,13 @@ def _parse_utc(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _fetch_window(config: ScientificPipelineConfig, start: str, end: str) -> list[dict]:
-    return fetch_events(
+def _fetch_window(
+    config: ScientificPipelineConfig,
+    start: str,
+    end: str,
+) -> tuple[list[dict], AcquisitionProvenance]:
+    acquired_at = datetime.now(timezone.utc)
+    events = fetch_events(
         starttime=start,
         endtime=end,
         minmagnitude=config.acquisition_min_magnitude,
@@ -104,6 +112,34 @@ def _fetch_window(config: ScientificPipelineConfig, start: str, end: str) -> lis
         timeout=config.timeout,
     )
 
+    parameters = {
+        "format": "geojson",
+        "starttime": start,
+        "endtime": end,
+        "limit": config.fetch_limit,
+        "orderby": "time-asc",
+    }
+    if config.acquisition_min_magnitude is not None:
+        parameters["minmagnitude"] = config.acquisition_min_magnitude
+    if config.minlatitude is not None:
+        parameters.update(
+            minlatitude=config.minlatitude,
+            maxlatitude=config.maxlatitude,
+            minlongitude=config.minlongitude,
+            maxlongitude=config.maxlongitude,
+        )
+
+    provenance = build_provenance(
+        source="USGS FDSN",
+        endpoint=USGS_FDSN_URL,
+        starttime=start,
+        endtime=end,
+        parameters=parameters,
+        events=events,
+        acquired_at=acquired_at,
+    )
+    return events, provenance
+
 
 def run_pipeline(
     config: ScientificPipelineConfig,
@@ -112,8 +148,12 @@ def run_pipeline(
 ) -> ScientificPipelineResult:
     """Execute the transparent baseline without future-data leakage."""
 
-    training_raw = _fetch_window(config, config.training_start, config.cutoff)
-    evaluation_raw = _fetch_window(config, config.cutoff, config.evaluation_end)
+    training_raw, training_provenance = _fetch_window(
+        config, config.training_start, config.cutoff
+    )
+    evaluation_raw, evaluation_provenance = _fetch_window(
+        config, config.cutoff, config.evaluation_end
+    )
 
     training_validation = validate_events(training_raw)
     evaluation_validation = validate_events(evaluation_raw)
@@ -147,6 +187,8 @@ def run_pipeline(
     return ScientificPipelineResult(
         generated_at=datetime.now(timezone.utc),
         config=config,
+        training_provenance=training_provenance,
+        evaluation_provenance=evaluation_provenance,
         training_validation=training_validation,
         evaluation_validation=evaluation_validation,
         training_events=training_events,
