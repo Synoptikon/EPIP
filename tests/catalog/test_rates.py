@@ -15,6 +15,7 @@ def event(event_id: str, timestamp: str, magnitude: float) -> CatalogEvent:
         depth_km=10.0,
         magnitude=magnitude,
         magnitude_type="ml",
+        place=None,
         source="TEST",
     )
 
